@@ -250,7 +250,11 @@ class Worker(object):
 
     def print_state(self):
         str_comp = []
-        for stacklet in self.deque:
+        for i, stacklet in enumerate(self.deque):
+            if i < len(self.deque) - 1:  # normal position in deque
+                str_comp.append("        ")
+            else:  # active stacklet, part of extended deque
+                str_comp.append("Active: ")
             for frame in stacklet.frames:
                 str_comp.append("{}\t\t".format(str(frame)))
             str_comp.append("\n")
