@@ -157,11 +157,11 @@ class Worker(object):
 
     def steal(self, victim):
         """Steal from victim's deque, only keep top frame in stacklet."""
-        if (
-            not self.deque.is_empty() or  # can only steal if deque empty
-            len(victim.deque) <= 1  # no available stacklet to steal
-        ):
-            raise InvalidActionError()
+        if not self.deque.is_empty():
+            raise InvalidActionError("Thief deque is not empty, cannot steal.")
+        if len(victim.deque) <= 1:
+            raise InvalidActionError("Victim does not have available stacklet "
+                                     "to steal.")
         stolen_stacklet = victim.deque.pop_head()
         # remove all frames from stacklet except for youngest frame
         for frame in stolen_stacklet.frames:
@@ -175,7 +175,7 @@ class Worker(object):
     def sync(self):
         """Sync, either no-op or suspend frame (and empty deque)."""
         if self.deque.is_empty():  # no frame on deque, nothing to sync
-            raise InvalidActionError()
+            raise InvalidActionError("There is no frame on deque to sync.")
         cur_frame = self.deque.youngest_frame
         if len(cur_frame.children) == 0:  # no-op
             return
@@ -187,7 +187,7 @@ class Worker(object):
     def spawn(self):
         """Spawn, add a new frame on new stacklet."""
         if self.deque.is_empty():  # no frame on deque, must steal first
-            raise InvalidActionError()
+            raise InvalidActionError("There is no frame on deque, cannot spawn.")
         new_frame = Frame("spawn")
         new_frame.worker = self
         new_frame.attach(self.deque.youngest_frame)
@@ -197,19 +197,21 @@ class Worker(object):
     def call(self):
         """Call, add a new frame on current stacklet."""
         if self.deque.is_empty():  # no frame on deque, must steal first
-            raise InvalidActionError()
+            raise InvalidActionError("There is no frame on deque, cannot call.")
         new_frame = Frame("call")
         new_frame.worker = self
         self.deque.youngest_stacklet.push(new_frame)
 
     def ret(self):
         """Return from the last call or spawn, possible removing a stacklet."""
-        if (
-            self.deque.is_empty() or  # no frame on deque
-            self.deque.youngest_frame.type == "initial" or  # only initial frame
-            len(self.deque.youngest_frame.children) != 0  # outstanding children
-        ):
-            raise InvalidActionError()
+        if self.deque.is_empty():
+            raise InvalidActionError("There is no frame on deque to return.")
+        if self.deque.youngest_frame.type == "initial":
+            raise InvalidActionError("Cannot return from initial frame in this "
+                                     "simulation.")
+        if len(self.deque.youngest_frame.children) != 0:
+            raise InvalidActionError("Frame has outstanding children, cannot "
+                                     "return until all children are finished.")
         ret_frame = self.deque.youngest_frame
         ret_frame.worker = None
         parent_frame = ret_frame.parent
@@ -225,7 +227,10 @@ class Worker(object):
     def _psteal(self, parent_frame):
         """Provably good/unconditional steal of parent."""
         if not self.deque.is_empty():
-            raise InvalidActionError()
+            # this shouldn't happen, _psteal should only be called in situations
+            # where a provably good/unconditional steal can happen, so where the
+            # thief's deque is empty.
+            raise AssertionError()
         if (
             len(parent_frame.children) == 0 and  # if no outstanding children
             parent_frame.worker is None  # and not being worked on
@@ -363,6 +368,6 @@ while True:
         continue
     try:
         rts.do_action(action)
-    except InvalidActionError:
-        print(">> Invalid action\n\n")
+    except InvalidActionError as e:
+        print(">> Invalid action: {}\n\n".format(e))
         rts.restore()
