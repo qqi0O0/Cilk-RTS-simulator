@@ -116,20 +116,30 @@ class RTS(object):
             # If action performed without error, add to history
             self.actions.append(action)
 
-    def _print_full_frame_tree_helper(self, frame, level):
-        indent = "  " * level
+    def _print_full_frame_tree_helper(self, frame):
+        """Returns a list of strings that represent `frame` as a tree."""
         str_comp = []
-        str_comp.append("{}{}\n".format(indent, frame))
-        for child in frame.children:
-            str_comp.append(self._print_full_frame_tree_helper(child, level + 1))
-        return "".join(str_comp)
+        str_comp.append("{}\n".format(frame))
+        for i, child in enumerate(frame.children):
+            child_str_comp = self._print_full_frame_tree_helper(child)
+            if i < len(frame.children) - 1:
+                # children up to the last child has vertical line in front
+                str_comp.append("|-{}".format(child_str_comp[0]))
+                for line in child_str_comp[1:]:
+                    str_comp.append("| {}".format(line))
+            else:
+                # last child does not have vertical line in front
+                str_comp.append("`-{}".format(child_str_comp[0]))
+                for line in child_str_comp[1:]:
+                    str_comp.append("  {}".format(line))
+        return str_comp
 
     def print_state(self):
         """Print a representation of the state of the runtime system."""
         str_comp = []
         # Print full frame tree
         str_comp.append("Full frame tree:\n\n")
-        str_comp.append(self._print_full_frame_tree_helper(self.initial_frame, 0))
+        str_comp.extend(self._print_full_frame_tree_helper(self.initial_frame))
         # Print worker deques
         str_comp.append("\n\nWorker deques:\n\n")
         for worker in self.workers:
