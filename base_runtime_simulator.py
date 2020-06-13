@@ -71,7 +71,7 @@ def parse_action(s):
         elif action_type is ActionType.SYNC:
             action = Action(action_type, worker_index=int(s_comp[1]))
         return action
-    except:
+    except Exception:
         raise ActionParseError()
 
 
@@ -232,14 +232,16 @@ class Worker(object):
             self.deque.youngest_stacklet.pop()  # remove frame from stacklet
         # If deque now empty, attempt to steal parent
         if self.deque.is_empty():
-            self._psteal(parent_frame)
+            if ret_frame.type == "spawn":
+                self.provably_good_steal(parent_frame)
+            elif ret_frame.type == "call":
+                self.unconditional_steal(parent_frame)
+            else:
+                raise AssertionError()
 
-    def _psteal(self, parent_frame):
-        """Provably good/unconditional steal of parent."""
-        if not self.deque.is_empty():
-            # this shouldn't happen, _psteal should only be called in situations
-            # where a provably good/unconditional steal can happen, so where the
-            # thief's deque is empty.
+    def provably_good_steal(self, parent_frame):
+        """Provably good steal of parent."""
+        if not self.deque.is_empty():  # thief should have empty deque
             raise AssertionError()
         if (
             len(parent_frame.children) == 0 and  # if no outstanding children
@@ -247,6 +249,13 @@ class Worker(object):
         ):
             parent_frame.worker = self
             self.deque.push(Stacklet(parent_frame))  # steal parent
+
+    def unconditional_steal(self, parent_frame):
+        """Unconditional steal of parent."""
+        if not self.deque.is_empty() or parent_frame.worker is not None:
+            raise AssertionError()
+        parent_frame.worker = self
+        self.deque.push(Stacklet(parent_frame))  # steal parent
 
     def print_state(self):
         str_comp = []
