@@ -15,17 +15,20 @@
 from enum import Enum, auto
 
 
-ID = 0
+class IDAssigner(object):
+    def __init__(self):
+        self.ID = 0
 
-def assign_id():
-    global ID
-    to_return = ID
-    ID += 1
-    return to_return
+    def assign(self):
+        to_return = self.ID
+        self.ID += 1
+        return to_return
 
-def reset_id():
-    global ID
-    ID = 0
+    def reset(self):
+        self.ID = 0
+
+
+frame_id_assigner = IDAssigner()
 
 
 class ActionType(Enum):
@@ -77,7 +80,7 @@ def parse_action(s):
 
 class RTS(object):
     def __init__(self, num_workers):
-        reset_id()
+        frame_id_assigner.reset()
         self.num_workers = num_workers
         # Initialize blank workers
         self.workers = []
@@ -165,13 +168,16 @@ class Worker(object):
         self.deque = Deque()
         self.index = index  # identifier for this worker in the RTS
 
-    def steal(self, victim):
-        """Steal from victim's deque, only keep top frame in stacklet."""
+    def check_steal_valid(self, victim):
         if not self.deque.is_empty():
             raise InvalidActionError("Thief deque is not empty, cannot steal.")
         if len(victim.deque) <= 1:
             raise InvalidActionError("Victim does not have available stacklet "
                                      "to steal.")
+
+    def steal(self, victim):
+        """Steal from victim's deque, only keep top frame in stacklet."""
+        self.check_steal_valid(victim)
         stolen_stacklet = victim.deque.pop_head()
         # remove all frames from stacklet except for youngest frame
         for frame in stolen_stacklet.frames:
@@ -182,38 +188,46 @@ class Worker(object):
         # add stolen stacklet to deque
         self.deque.push(stolen_stacklet)
 
-    def sync(self):
-        """Sync, either no-op or suspend frame (and empty deque)."""
+    def check_sync_valid(self):
         if self.deque.is_empty():  # no frame on deque, nothing to sync
             raise InvalidActionError("There is no frame on deque to sync.")
-        cur_frame = self.deque.youngest_frame
-        if len(cur_frame.children) == 0:  # no-op
+
+    def sync(self):
+        """Sync, either no-op or suspend frame (and empty deque)."""
+        self.check_sync_valid()
+        if not self.deque.is_single_frame():  # no-op
             return
-        else:  # suspend
-            assert(self.deque.is_single_frame())
+        else:  # pop, try to provably good steal back
+            cur_frame = self.deque.youngest_frame
             cur_frame.worker = None
             self.deque.pop()
+            self.provably_good_steal(cur_frame)
+
+    def check_spawn_valid(self):
+        if self.deque.is_empty():  # no frame on deque, must steal first
+            raise InvalidActionError("There is no frame on deque, cannot spawn.")
 
     def spawn(self):
         """Spawn, add a new frame on new stacklet."""
-        if self.deque.is_empty():  # no frame on deque, must steal first
-            raise InvalidActionError("There is no frame on deque, cannot spawn.")
+        self.check_spawn_valid()
         new_frame = Frame("spawn")
         new_frame.worker = self
         new_frame.attach(self.deque.youngest_frame)
         new_stacklet = Stacklet(new_frame)
         self.deque.push(new_stacklet)
 
-    def call(self):
-        """Call, add a new frame on current stacklet."""
+    def check_call_valid(self):
         if self.deque.is_empty():  # no frame on deque, must steal first
             raise InvalidActionError("There is no frame on deque, cannot call.")
+
+    def call(self):
+        """Call, add a new frame on current stacklet."""
+        self.check_call_valid()
         new_frame = Frame("call")
         new_frame.worker = self
         self.deque.youngest_stacklet.push(new_frame)
 
-    def ret(self):
-        """Return from the last call or spawn, possible removing a stacklet."""
+    def check_ret_valid(self):
         if self.deque.is_empty():
             raise InvalidActionError("There is no frame on deque to return.")
         if self.deque.youngest_frame.type == "initial":
@@ -222,6 +236,10 @@ class Worker(object):
         if len(self.deque.youngest_frame.children) != 0:
             raise InvalidActionError("Frame has outstanding children, cannot "
                                      "return until all children are finished.")
+
+    def ret(self):
+        """Return from the last call or spawn, possible removing a stacklet."""
+        self.check_ret_valid()
         ret_frame = self.deque.youngest_frame
         ret_frame.worker = None
         parent_frame = ret_frame.parent
@@ -239,23 +257,23 @@ class Worker(object):
             else:
                 raise AssertionError()
 
-    def provably_good_steal(self, parent_frame):
-        """Provably good steal of parent."""
+    def provably_good_steal(self, frame):
+        """Provably good steal of frame."""
         if not self.deque.is_empty():  # thief should have empty deque
             raise AssertionError()
         if (
-            len(parent_frame.children) == 0 and  # if no outstanding children
-            parent_frame.worker is None  # and not being worked on
+            len(frame.children) == 0 and  # if no outstanding children
+            frame.worker is None  # and not being worked on
         ):
-            parent_frame.worker = self
-            self.deque.push(Stacklet(parent_frame))  # steal parent
+            frame.worker = self
+            self.deque.push(Stacklet(frame))  # steal
 
-    def unconditional_steal(self, parent_frame):
-        """Unconditional steal of parent."""
-        if not self.deque.is_empty() or parent_frame.worker is not None:
+    def unconditional_steal(self, frame):
+        """Unconditional steal of frame."""
+        if not self.deque.is_empty() or frame.worker is not None:
             raise AssertionError()
-        parent_frame.worker = self
-        self.deque.push(Stacklet(parent_frame))  # steal parent
+        frame.worker = self
+        self.deque.push(Stacklet(frame))  # steal
 
     def print_state(self):
         str_comp = []
@@ -350,7 +368,7 @@ class Frame(object):
     Stores parent/children pointers.
     """
     def __init__(self, frame_type):
-        self.id = assign_id()
+        self.id = frame_id_assigner.assign()
         self.type = frame_type
         self.parent = None
         self.children = []
