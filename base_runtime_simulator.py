@@ -277,19 +277,20 @@ class Worker(object):
 
     def provably_good_steal(self, frame):
         """Provably good steal of frame."""
-        if not self.deque.is_empty():  # thief should have empty deque
-            raise AssertionError()
+        assert(self.deque.is_empty())  # thief should have empty deque
         if (
             len(frame.children) == 0 and  # if no outstanding children
             frame.worker is None  # and not being worked on
         ):
-            frame.worker = self
-            self.deque.push(Stacklet(frame))  # steal
+            self.provably_good_steal_success(frame)
+
+    def provably_good_steal_success(self, frame):
+        frame.worker = self
+        self.deque.push(Stacklet(frame))  # steal
 
     def unconditional_steal(self, frame):
         """Unconditional steal of frame."""
-        if not self.deque.is_empty() or frame.worker is not None:
-            raise AssertionError()
+        assert(self.deque.is_empty() or frame.worker is not None)
         frame.worker = self
         self.deque.push(Stacklet(frame))  # steal
 
