@@ -1,3 +1,13 @@
+###
+# You can run the interactive runtime system simulator with 
+#   python main.py
+#
+# You can also feed a number of instructions from a file into the simulator,
+# before entering the interactive part. For this, run
+#   python main.py file_with_newline_separated_commands.txt
+###
+
+
 import sys
 
 from helpers import color, ActionParseError, InvalidActionError
