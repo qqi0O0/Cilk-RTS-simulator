@@ -11,6 +11,7 @@
 
 from copy import copy
 
+from helpers import color
 import base_runtime_simulator as base
 
 
@@ -196,10 +197,9 @@ class Worker(base.Worker):
         str_comp.append("\n")
         for i, hmap in enumerate(self.aug_hmap_deque):
             if i == len(self.aug_hmap_deque) - 1:  # corresopnds to active stacklet
-                str_comp.append(base.GREY)
-            str_comp.append(str(hmap))
-            if i == len(self.aug_hmap_deque) - 1:
-                str_comp.append(base.ENDC)
+                str_comp.append(color(str(hmap), "grey"))
+            else:
+                str_comp.append(str(hmap))
             str_comp.append("\n")
         str_comp.append("\nActive hmap: \t")
         str_comp.append(str(self.active_hmap))

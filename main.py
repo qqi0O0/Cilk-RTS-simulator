@@ -1,6 +1,7 @@
 import sys
 
-from base_runtime_simulator import RED, ENDC, ActionParseError, InvalidActionError
+from helpers import color
+from base_runtime_simulator import ActionParseError, InvalidActionError
 
 #from base_runtime_simulator import RTS, parse_action
 from splitter_runtime_simulator import RTS, parse_action
@@ -13,12 +14,12 @@ def process_input(inp):
     try:
         action = parse_action(inp)
     except ActionParseError:
-        print("{}>> Unable to parse action{}\n\n".format(RED, ENDC))
+        print(color(">> Unable to parse action\n\n", "red"))
         return
     try:
         rts.do_action(action)
     except InvalidActionError as e:
-        print("{}>> Invalid action: {}{}\n\n".format(RED, e, ENDC))
+        print(color(">> Invalid action: {}\n\n".format(e), "red"))
         rts.restore()
 
 # Input file passed
@@ -27,14 +28,14 @@ if len(sys.argv) > 1:
         for line in f.readlines():
             line = line.strip()
             print(rts.print_state())
-            print("{}>{} {}\n".format(RED, ENDC, line))
+            print(color("> {}\n".format(line), "red"))
             process_input(line)
 
 
 # Interactive
 while True:
     print(rts.print_state())
-    print("{}>{} ".format(RED, ENDC), end="")
+    print(color("> ", "red"), end="")
     # User describes action, perform action
     inp = input()
     print("\n")
