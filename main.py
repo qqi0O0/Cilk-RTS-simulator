@@ -1,8 +1,9 @@
 import sys
 
-from base_runtime_simulator import (
-    RTS, parse_action, ActionParseError, InvalidActionError
-)
+from base_runtime_simulator import ActionParseError, InvalidActionError
+
+#from base_runtime_simulator import RTS, parse_action
+from splitter_runtime_simulator import RTS, parse_action
 
 
 rts = RTS(4)  # 4 workers
