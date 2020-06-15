@@ -250,21 +250,30 @@ class Worker(object):
         """Return from the last call or spawn, possible removing a stacklet."""
         self.check_ret_valid()
         ret_frame = self.deque.youngest_frame
-        ret_frame.worker = None
+        if ret_frame.type == "call":
+            self.ret_from_call()
+        elif ret_frame.type == "spawn":
+            self.ret_from_spawn()
+        else:
+            raise AssertionError()
+
+    def ret_from_call(self):
+        ret_frame = self.deque.youngest_frame
         parent_frame = ret_frame.parent
         ret_frame.detach()
-        if len(self.deque.youngest_stacklet) == 1:  # last frame of stacklet
-            self.deque.pop()  # destroy stacklet
-        else:  # not last frame of stacklet
+        if not self.deque.is_single_frame():
             self.deque.youngest_stacklet.pop()  # remove frame from stacklet
-        # If deque now empty, attempt to steal parent
-        if self.deque.is_empty():
-            if ret_frame.type == "spawn":
-                self.provably_good_steal(parent_frame)
-            elif ret_frame.type == "call":
-                self.unconditional_steal(parent_frame)
-            else:
-                raise AssertionError()
+        else:
+            self.deque.pop()  # destroy stacklet
+            self.unconditional_steal(parent_frame)  # unconditional steal of parent
+
+    def ret_from_spawn(self):
+        ret_frame = self.deque.youngest_frame
+        parent_frame = ret_frame.parent
+        ret_frame.detach()
+        self.deque.pop()  # remove stacklet
+        if self.deque.is_empty():  # empty after removing last frame/stacklet
+            self.provably_good_steal(parent_frame)  # try to steal parent
 
     def provably_good_steal(self, frame):
         """Provably good steal of frame."""
