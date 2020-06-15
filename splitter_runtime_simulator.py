@@ -11,7 +11,9 @@
 
 from copy import copy
 
-from helpers import color
+from helpers import (
+    color, frame_id_assigner, InvalidActionError, ActionParseError, Action
+)
 import base_runtime_simulator as base
 
 
@@ -21,25 +23,24 @@ def parse_action(s):
         s_comp = s.split()
         action_type = s_comp[0]
         if action_type == "push":
-            action = base.Action(action_type, worker_index=int(s_comp[1]),
-                                 splitter_name=s_comp[2])
+            action = Action(action_type, worker_index=int(s_comp[1]),
+                            splitter_name=s_comp[2])
         elif action_type == "set":
-            action = base.Action(action_type, worker_index=int(s_comp[1]),
-                                 splitter_name=s_comp[2], splitter_value=s_comp[3])
+            action = Action(action_type, worker_index=int(s_comp[1]),
+                            splitter_name=s_comp[2], splitter_value=s_comp[3])
         elif action_type == "pop":
-            action = base.Action(action_type, worker_index=int(s_comp[1]),
-                                 splitter_name=s_comp[2])
+            action = Action(action_type, worker_index=int(s_comp[1]),
+                            splitter_name=s_comp[2])
+        else:
+            return base.parse_action(s)  # then try parsing as a base action
         return action
-    except Exception:  # then try parsing as a base action
-        try:
-            return base.parse_action(s)
-        except Exception:  # raise error if both fail
-            raise base.ActionParseError()
+    except Exception:
+        raise ActionParseError()
 
 
 class RTS(base.RTS):
     def __init__(self, num_workers):
-        base.frame_id_assigner.reset()
+        frame_id_assigner.reset()
         self.num_workers = num_workers
         # Initialize blank workers
         self.workers = []
@@ -91,13 +92,13 @@ class Worker(base.Worker):
 
     def _check_splitter_action_valid(self, splitter_name):
         if self.deque.is_empty():
-            raise base.InvalidActionError("There is no frame, can't operation "
-                                          "on splitter")
+            raise InvalidActionError("There is no frame, can't operation "
+                                     "on splitter")
         assert(self.active_hmap is not None)
         assert(self.ancestor_hmap is not None)
         if splitter_name not in self.active_hmap:
-            raise base.InvalidActionError("Splitter {} not found".format(
-                                          splitter_name))
+            raise InvalidActionError("Splitter {} not found".format(
+                                     splitter_name))
 
     def push(self, splitter_name):
         self._check_splitter_action_valid(splitter_name)
@@ -169,8 +170,8 @@ class Worker(base.Worker):
 
     def ret_from_spawn(self):
         if len(self.youngest_aug_hmap) != 0:
-            raise base.InvalidActionError("Cannot return without having popped "
-                                          "all pushed splitters.")
+            raise InvalidActionError("Cannot return without having popped "
+                                     "all pushed splitters.")
         self.aug_hmap_deque.pop()
         super().ret_from_spawn()
         # TODO: correctly simulate "destroy view" since python garbage collects
@@ -196,7 +197,7 @@ class Worker(base.Worker):
         str_comp.append(str(self.ancestor_hmap))
         str_comp.append("\n")
         for i, hmap in enumerate(self.aug_hmap_deque):
-            if i == len(self.aug_hmap_deque) - 1:  # corresopnds to active stacklet
+            if i == len(self.aug_hmap_deque) - 1:  # corresponds to active stacklet
                 str_comp.append(color(str(hmap), "grey"))
             else:
                 str_comp.append(str(hmap))
@@ -228,8 +229,8 @@ class AugmentedHmap(object):
     def pop(self, splitter_name):
         assert(self.cur_map.keys() == self.start_map.keys())
         if splitter_name not in self.cur_map:
-            raise base.InvalidActionError("Cannot pop splitter {}".format(
-                                          splitter_name))
+            raise InvalidActionError("Cannot pop splitter {}".format(
+                                     splitter_name))
         popped_view = self.cur_map[splitter_name]
         if popped_view.parent is self.start_map[splitter_name]:
             # popped to the beginning of the stack

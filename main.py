@@ -1,7 +1,6 @@
 import sys
 
-from helpers import color
-from base_runtime_simulator import ActionParseError, InvalidActionError
+from helpers import color, ActionParseError, InvalidActionError
 
 #from base_runtime_simulator import RTS, parse_action
 from splitter_runtime_simulator import RTS, parse_action

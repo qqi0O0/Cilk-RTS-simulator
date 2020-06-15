@@ -12,40 +12,10 @@
 #####
 
 
-from helpers import color
+from helpers import (
+    color, frame_id_assigner, InvalidActionError, ActionParseError, Action
+)
 
-
-class IDAssigner(object):
-    def __init__(self):
-        self.ID = 0
-
-    def assign(self):
-        to_return = self.ID
-        self.ID += 1
-        return to_return
-
-    def reset(self):
-        self.ID = 0
-
-
-frame_id_assigner = IDAssigner()
-
-
-class InvalidActionError(Exception):
-    pass
-
-class ActionParseError(Exception):
-    pass
-
-class Action(object):
-    """
-    Stores an action and the worker(s) involved in the action. E.g. spawn,
-    steal, sync, splitter push, splitter pop, etc.
-    """
-    def __init__(self, action_type, **kwargs):
-        self.type = action_type
-        for key, val in kwargs.items():
-            setattr(self, key, val)
 
 def parse_action(s):
     """Parse string s, return an Action object."""
@@ -65,6 +35,8 @@ def parse_action(s):
                             victim_index=int(s_comp[2]))
         elif action_type == "sync":
             action = Action(action_type, worker_index=int(s_comp[1]))
+        else:
+            raise ActionParseError()
         return action
     except Exception:
         raise ActionParseError()
