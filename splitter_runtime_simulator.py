@@ -32,7 +32,7 @@ def parse_action(s):
             action = Action(action_type, worker_index=int(s_comp[1]),
                             splitter_name=s_comp[2])
         else:
-            return base.parse_action(s)  # then try parsing as a base action
+            action = base.parse_action(s)
         return action
     except Exception:
         raise ActionParseError()
@@ -49,7 +49,7 @@ class RTS(base.RTS):
         # One worker starts with initial frame
         self.initial_frame = Frame("initial")
         init_worker = self.workers[0]
-        init_worker.deque.push(base.Stacklet(self.initial_frame))
+        init_worker.deque.push(Stacklet(self.initial_frame))
         self.initial_frame.worker = init_worker
         init_worker.aug_hmap_deque.append(AugmentedHmap())
         init_worker.ancestor_hmap = copy(initial_hmap)
@@ -92,7 +92,7 @@ class Worker(base.Worker):
 
     def _check_splitter_action_valid(self, splitter_name):
         if self.deque.is_empty():
-            raise InvalidActionError("There is no frame, can't operation "
+            raise InvalidActionError("There is no frame, can't do operation "
                                      "on splitter")
         assert(self.active_hmap is not None)
         assert(self.ancestor_hmap is not None)
@@ -164,10 +164,6 @@ class Worker(base.Worker):
         new_frame = Frame("call")
         new_frame.worker = self
         self.deque.youngest_stacklet.push(new_frame)
-
-    def ret_from_call(self):
-        super().ret_from_call()  # no changes to any hypermaps either here or at
-                                 # unconditional steal
 
     def ret_from_spawn(self):
         if len(self.youngest_aug_hmap) != 0:
