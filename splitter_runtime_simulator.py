@@ -146,6 +146,7 @@ class Worker(base.Worker):
             assert(len(self.aug_hmap_deque) == 0)
             cur_frame.ancestor_hmap = self.ancestor_hmap
             self.ancestor_hmap = None
+            cur_frame.active_hmap = self.active_hmap
             self.active_hmap = None
             self.provably_good_steal(cur_frame)
 
@@ -179,15 +180,13 @@ class Worker(base.Worker):
     def provably_good_steal_success(self, frame):
         super().provably_good_steal_success(frame)
         assert(frame.ancestor_hmap is not None and frame.aug_hmap is not None)
-        # Change ownership of ancestor/deque hypermaps
+        # Change ownership of hypermaps
         self.ancestor_hmap = frame.ancestor_hmap
         frame.ancestor_hmap = None
         self.aug_hmap_deque.append(frame.aug_hmap)
         frame.aug_hmap = None
-        # Set active hypermap to copy of the two combined
-        self.active_hmap = copy(self.ancestor_hmap)
-        for name, view in self.aug_hmap_deque[0].cur_map.items():
-            self.active_hmap[name] = view
+        self.active_hmap = frame.active_hmap
+        frame.active_hmap = None
 
     def print_state(self):
         base_str = super().print_state()
@@ -224,7 +223,7 @@ class AugmentedHmap(object):
             self.cur_map[splitter_name] = view
         else:
             self.cur_map[splitter_name] = view
-            self.start_map[splitter_name] = view.parent
+            self.start_map[splitter_name] = view
 
     def pop(self, splitter_name):
         assert(self.cur_map.keys() == self.start_map.keys())
@@ -232,7 +231,7 @@ class AugmentedHmap(object):
             raise InvalidActionError("Cannot pop splitter {}".format(
                                      splitter_name))
         popped_view = self.cur_map[splitter_name]
-        if popped_view.parent is self.start_map[splitter_name]:
+        if popped_view is self.start_map[splitter_name]:
             # popped to the beginning of the stack
             self.cur_map.pop(splitter_name)
             self.start_map.pop(splitter_name)
@@ -266,13 +265,15 @@ class Frame(base.Frame):
         super().__init__(frame_type)
         self.ancestor_hmap = None
         self.aug_hmap = None
+        self.active_hmap = None
 
     def __str__(self):
         base_str = super().__str__()
         if self.ancestor_hmap is not None:
             assert(self.aug_hmap is not None)
             base_str += "; Ancestor map: {}; ".format(self.ancestor_hmap)
-            base_str += "Augmented map: {}".format(self.aug_hmap)
+            base_str += "Augmented map: {}; ".format(self.aug_hmap)
+            base_str += "Active map: {}; ".format(self.active_hmap)
         return base_str
 
 
