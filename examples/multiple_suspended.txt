@@ -1,0 +1,9 @@
+call 0
+call 0
+call 0
+spawn 0
+steal 1 0
+sync 1
+return 0
+spawn 0
+steal 1 0
