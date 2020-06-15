@@ -12,9 +12,6 @@
 #####
 
 
-from enum import Enum, auto
-
-
 UNDERLINE = '\033[4m'
 RED = '\033[91m'
 GREEN = '\033[92m'
@@ -40,14 +37,6 @@ class IDAssigner(object):
 frame_id_assigner = IDAssigner()
 
 
-class ActionType(Enum):
-    UNDO = "undo"
-    CALL = "call"
-    SPAWN = "spawn"
-    RETURN = "return"  # return from spawn or call
-    STEAL = "steal"
-    SYNC = "sync"  # may cause a suspended frame
-
 class InvalidActionError(Exception):
     pass
 
@@ -68,19 +57,19 @@ def parse_action(s):
     """Parse string s, return an Action object."""
     try:
         s_comp = s.split()
-        action_type = ActionType(s_comp[0])
-        if action_type is ActionType.UNDO:
+        action_type = s_comp[0]
+        if action_type == "undo":
             action = Action(action_type)
-        elif action_type is ActionType.CALL:
+        elif action_type == "call":
             action = Action(action_type, worker_index=int(s_comp[1]))
-        elif action_type is ActionType.SPAWN:
+        elif action_type == "spawn":
             action = Action(action_type, worker_index=int(s_comp[1]))
-        elif action_type is ActionType.RETURN:
+        elif action_type == "return":
             action = Action(action_type, worker_index=int(s_comp[1]))
-        elif action_type is ActionType.STEAL:
+        elif action_type == "steal":
             action = Action(action_type, thief_index=int(s_comp[1]),
                             victim_index=int(s_comp[2]))
-        elif action_type is ActionType.SYNC:
+        elif action_type == "sync":
             action = Action(action_type, worker_index=int(s_comp[1]))
         return action
     except Exception:
@@ -103,26 +92,26 @@ class RTS(object):
         self.actions = []
 
     def do_action(self, action):
-        if action.type is ActionType.UNDO:
+        if action.type == "undo":
             if len(self.actions) > 0:
                 self.actions.pop()
             self.restore()
         else:
             # Attempt to perform action
-            if action.type is ActionType.CALL:
+            if action.type == "call":
                 worker = self.workers[action.worker_index]
                 worker.call()
-            elif action.type is ActionType.SPAWN:
+            elif action.type == "spawn":
                 worker = self.workers[action.worker_index]
                 worker.spawn()
-            elif action.type is ActionType.RETURN:
+            elif action.type == "return":
                 worker = self.workers[action.worker_index]
                 worker.ret()
-            elif action.type is ActionType.STEAL:
+            elif action.type == "steal":
                 thief = self.workers[action.thief_index]
                 victim = self.workers[action.victim_index]
                 thief.steal(victim)
-            elif action.type is ActionType.SYNC:
+            elif action.type == "sync":
                 worker = self.workers[action.worker_index]
                 worker.sync()
             # If action performed without error, add to history

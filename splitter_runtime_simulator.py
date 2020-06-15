@@ -10,29 +10,22 @@
 
 
 from copy import copy
-from enum import Enum
 
 import base_runtime_simulator as base
-
-
-class SplitterActionType(Enum):
-    PUSH = "push"
-    SET = "set"
-    POP = "pop"
 
 
 def parse_action(s):
     """Parse string s, return an Action object, including new splitter actions."""
     try:  # see if s is a splitter action first
         s_comp = s.split()
-        action_type = SplitterActionType(s_comp[0])
-        if action_type is SplitterActionType.PUSH:
+        action_type = s_comp[0]
+        if action_type == "push":
             action = base.Action(action_type, worker_index=int(s_comp[1]),
                                  splitter_name=s_comp[2])
-        elif action_type is SplitterActionType.SET:
+        elif action_type == "set":
             action = base.Action(action_type, worker_index=int(s_comp[1]),
                                  splitter_name=s_comp[2], splitter_value=s_comp[3])
-        elif action_type is SplitterActionType.POP:
+        elif action_type == "pop":
             action = base.Action(action_type, worker_index=int(s_comp[1]),
                                  splitter_name=s_comp[2])
         return action
@@ -63,15 +56,15 @@ class RTS(base.RTS):
         self.actions = []
 
     def do_action(self, action):
-        if action.type is SplitterActionType.PUSH:
+        if action.type == "push":
             worker = self.workers[action.worker_index]
             worker.push(action.splitter_name)
             self.actions.append(action)
-        elif action.type is SplitterActionType.SET:
+        elif action.type == "set":
             worker = self.workers[action.worker_index]
             worker.set(action.splitter_name, action.splitter_value)
             self.actions.append(action)
-        elif action.type is SplitterActionType.POP:
+        elif action.type == "pop":
             worker = self.workers[action.worker_index]
             worker.pop(action.splitter_name)
             self.actions.append(action)
