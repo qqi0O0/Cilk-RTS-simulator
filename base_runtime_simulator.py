@@ -15,6 +15,15 @@
 from enum import Enum, auto
 
 
+UNDERLINE = '\033[4m'
+RED = '\033[91m'
+GREEN = '\033[92m'
+BLUE = '\033[94m'
+YELLOW = '\033[93m'
+GREY = '\033[90m'
+ENDC = '\033[0m'
+
+
 class IDAssigner(object):
     def __init__(self):
         self.ID = 0
@@ -141,12 +150,12 @@ class RTS(object):
         """Print a representation of the state of the runtime system."""
         str_comp = []
         # Print full frame tree
-        str_comp.append("Full frame tree:\n\n")
+        str_comp.append("{}Full frame tree:{}\n\n".format(YELLOW, ENDC))
         str_comp.extend(self._print_full_frame_tree_helper(self.initial_frame))
         # Print worker deques
-        str_comp.append("\n\nWorker deques:\n\n")
+        str_comp.append("\n\n{}Worker deques:{}\n\n".format(YELLOW, ENDC))
         for worker in self.workers:
-            str_comp.append("* Worker {} *\n".format(worker.index))
+            str_comp.append("{}Worker {}{}\n".format(BLUE, worker.index, ENDC))
             str_comp.append(worker.print_state())
             str_comp.append("\n")
         return "".join(str_comp)
@@ -278,12 +287,12 @@ class Worker(object):
     def print_state(self):
         str_comp = []
         for i, stacklet in enumerate(self.deque):
-            if i < len(self.deque) - 1:  # normal position in deque
-                str_comp.append("        ")
-            else:  # active stacklet, part of extended deque
-                str_comp.append("Active: ")
+            if i == len(self.deque) - 1:  # active stacklet, indicate by color
+                str_comp.append(GREY)
             for frame in stacklet.frames:
                 str_comp.append("{}\t\t".format(str(frame)))
+            if i == len(self.deque) - 1:
+                str_comp.append(ENDC)
             str_comp.append("\n")
         return "".join(str_comp)
 
