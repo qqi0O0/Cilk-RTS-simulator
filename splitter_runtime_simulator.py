@@ -170,6 +170,9 @@ class Worker(base.Worker):
             raise InvalidActionError("Cannot return without having popped "
                                      "all pushed splitters.")
         self.aug_hmap_deque.pop()
+        if self.deque.is_single_frame():
+            self.active_hmap = None
+            self.ancestor_hmap = None
         super().ret_from_spawn()
         # TODO: correctly simulate "destroy view" since python garbage collects
 
