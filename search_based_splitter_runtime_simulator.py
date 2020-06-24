@@ -10,6 +10,9 @@
 #####
 
 
+# TODO: global container of not-destroyed views
+
+
 from copy import copy
 
 from helpers import (
@@ -103,7 +106,7 @@ class Worker(base.Worker):
             if hmap_to_search is None:
                 raise InvalidActionError("Splitter {} not found".format(
                                          splitter_name))
-        view = hmap_to_search.top_view(splitter_name)
+        view = hmap_to_search.top_map[splitter_name]
         self.cache[splitter_name] = view
         return view
 
@@ -146,8 +149,20 @@ class Worker(base.Worker):
             youngest.top_map[splitter_name] = parent_view
         self.cache[splitter_name] = parent_view
 
+    def call(self):
+        """Call, add a new frame on current stacklet."""
+        self.check_call_valid()
+        new_frame = Frame("call")
+        new_frame.worker = self
+        self.deque.youngest_stacklet.push(new_frame)
+
     def spawn(self):
-        super().spawn()
+        self.check_spawn_valid()
+        new_frame = Frame("spawn")
+        new_frame.worker = self
+        new_frame.attach(self.deque.youngest_frame)
+        new_stacklet = Stacklet(new_frame)
+        self.deque.push(new_stacklet)
         new_hmap = HMap(self.hmap_deque.youngest_hmap)
         self.hmap_deque.append(new_hmap)
 
@@ -173,6 +188,42 @@ class Worker(base.Worker):
         new_hmap = HMap(self.hmap_deque.youngest_hmap)
         self.hmap_deque.youngest_hmaps.append(new_hmap)
         self.cache.clear()
+
+    def sync(self):
+        self.check_sync_valid()
+        if not self.deque.is_single_frame():  # no-op
+            return
+        else:  # pop, try to provably good steal back
+            cur_frame = self.deque.youngest_frame
+            cur_frame.worker = None
+            self.deque.pop()
+            # Change ownership of hypermaps
+            assert(cur_frame.cache is None and cur_frame.hmaps == [])
+            cur_frame.hmaps = self.hmap_deque.pop()
+            assert(len(self.hmap_deque) == 0)
+            cur_frame.cache = self.cache
+            self.cache = None
+            self.provably_good_steal(cur_frame)
+
+    def provably_good_steal_success(self, frame):
+        super().provably_good_steal_success(frame)
+        assert(frame.cache is not None and frame.hmaps != [])
+        self.cache = frame.cache
+        frame.cache = None
+        # merge hypermaps
+        hmaps = frame.hmaps
+        frame.hmaps = []
+        accum = hmaps[0]
+        for i in range(1, len(hmaps)):
+            child = hmaps[i]
+            for splitter_name in child:
+                top_view = accum.top_map[splitter_name]
+                base_view = child.base_map[splitter_name]
+                # Destroy from base to top, not including base
+                # skipped for now, will exist once views are tracked
+                # Update top view
+                accum.top_map[splitter_name] = child.top_map[splitter_name]
+        self.hmap_deque.append(accum)
 
     def print_state(self):
         # interleave call stack and hypermaps
@@ -203,9 +254,6 @@ class HMap(object):
         self.top_map = {}
         self.base_map = {}
         self.parent = parent
-
-    def top_view(self, splitter_name):
-        return self.top_map[splitter_name]
 
     def __contains__(self, key):
         return key in self.base_map
@@ -293,8 +341,10 @@ class Frame(base.Frame):
             return base_str
         str_comp.append(base_str)
         str_comp.append("; Hypermaps: ")
-        for hmap in hmaps:
+        for hmap in self.hmaps:
+            str_comp.append("(")
             str_comp.append(str(hmap))
-            str_comp.append("; ")
+            str_comp.append(") ")
+        str_comp.append("Cache: ")
         str_comp.append(str(self.cache))
         return "".join(str_comp)
