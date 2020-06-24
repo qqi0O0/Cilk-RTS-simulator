@@ -146,6 +146,34 @@ class Worker(base.Worker):
             youngest.top_map[splitter_name] = parent_view
         self.cache[splitter_name] = parent_view
 
+    def spawn(self):
+        super().spawn()
+        new_hmap = HMap(self.hmap_deque.youngest_hmap)
+        self.hmap_deque.append(new_hmap)
+
+    def ret_from_spawn(self):
+        if len(self.hmap_deque.youngest_hmaps) > 1:
+            raise InvalidActionError("Cannot return, hypermaps have not been "
+                                     "merged. Sync before returning.")
+        youngest_hmap = self.hmap_deque.youngest_hmap
+        if any(
+            youngest_hmap.top_map[splitter] is not youngest_hmap.base_map[splitter]
+            for splitter in youngest_hmap
+        ):
+            raise InvalidActionError("Cannot return without having popped "
+                                     "all pushed splitters.")
+        self.hmap_deque.pop()
+        super().ret_from_spawn()
+
+    def steal(self, victim):
+        super().steal(victim)
+        stolen_hmaps = victim.hmap_deque.pop(0)
+        assert(len(self.hmap_deque) == 0)
+        self.hmap_deque.deque.append(stolen_hmaps)
+        new_hmap = HMap(self.hmap_deque.youngest_hmap)
+        self.hmap_deque.youngest_hmaps.append(new_hmap)
+        self.cache.clear()
+
     def print_state(self):
         # interleave call stack and hypermaps
         # under each call stack, print hypermaps in order of oldest to youngest
@@ -182,6 +210,9 @@ class HMap(object):
     def __contains__(self, key):
         return key in self.base_map
 
+    def __iter__(self):
+        yield from self.base_map.keys()
+
     def __str__(self):
         assert(self.base_map.keys() == self.top_map.keys())
         str_comp = []
@@ -197,7 +228,7 @@ class HMap(object):
             values.append(iter_view.value)
             values.reverse()  # oldest in front, youngest at end
             str_comp.append("<-".join(values))
-            str_comp.append("    ")
+            str_comp.append("; ")
         return "".join(str_comp)
 
 class HMapDeque(object):
@@ -229,6 +260,9 @@ class HMapDeque(object):
     def append(self, hmap):
         self.deque.append([hmap])
 
+    def pop(self, index=-1):
+        return self.deque.pop(index)
+
 class View(object):
     def __init__(self, value):
         self.value = value
@@ -246,4 +280,21 @@ class Stacklet(base.Stacklet):
 
 
 class Frame(base.Frame):
-    pass
+    def __init__(self, frame_type):
+        super().__init__(frame_type)
+        self.hmaps = []
+        self.cache = None
+
+    def __str__(self):
+        str_comp = []
+        base_str = super().__str__()
+        if self.cache is None:
+            assert self.hmaps == []
+            return base_str
+        str_comp.append(base_str)
+        str_comp.append("; Hypermaps: ")
+        for hmap in hmaps:
+            str_comp.append(str(hmap))
+            str_comp.append("; ")
+        str_comp.append(str(self.cache))
+        return "".join(str_comp)
