@@ -1,0 +1,24 @@
+push 0 x
+set 0 x x1
+push 0 x
+set 0 x x2
+push 0 x
+set 0 x x3
+spawn 0
+steal 1 0
+pop 1 x
+push 1 x
+set 1 x x4
+push 1 x
+set 1 x x5
+push 1 x
+set 1 x x6
+pop 1 x
+spawn 1
+steal 2 1
+pop 2 x
+pop 2 x
+pop 2 x
+return 0
+return 1
+sync 2
