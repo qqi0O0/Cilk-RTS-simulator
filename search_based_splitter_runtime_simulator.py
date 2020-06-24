@@ -55,9 +55,7 @@ class RTS(base.RTS):
         init_worker = self.workers[0]
         init_worker.deque.push(Stacklet(self.initial_frame))
         self.initial_frame.worker = init_worker
-        init_worker.aug_hmap_deque.append(AugmentedHmap())
-        init_worker.ancestor_hmap = copy(initial_hmap)
-        init_worker.active_hmap = {}
+        init_worker.hmap_deque.append(initial_hmap)
         # Keep track of all actions, for restoring
         self.actions = []
 
@@ -86,176 +84,149 @@ class Worker(base.Worker):
     def __init__(self, index):
         super().__init__(index)
         # Keep track of splitter state
-        self.aug_hmap_deque = []
-        self.ancestor_hmap = None
-        self.active_hmap = None
-
-    @property
-    def oldest_aug_hmap(self):
-        return self.aug_hmap_deque[0]
-
-    @property
-    def youngest_aug_hmap(self):
-        return self.aug_hmap_deque[-1]
+        self.hmap_deque = HMapDeque()
+        self.cache = {}
 
     def access(self, splitter_name):
-        if splitter_name in self.active_hmap:
-            return self.active_hmap[splitter_name]
-        if splitter_name in self.oldest_aug_hmap:
-            view = self.oldest_aug_hmap.cur_map[splitter_name]
-            self.active_hmap[splitter_name] = view
-            return view
-        # Otherwise, start recursively searching parent ancestor hmaps
-        # TODO: confirm this is actually legal
-        
+        if splitter_name in self.cache:
+            return self.cache[splitter_name]
+        # start searching
+        hmap_to_search = self.hmap_deque.oldest_hmaps[-1]
+        while splitter_name not in hmap_to_search:
+            hmap_to_search = hmap_to_search.parent
+            if hmap_to_search is None:
+                raise InvalidActionError("Splitter {} not found".format(
+                                         splitter_name))
+        view = hmap_to_search.top_view(splitter_name)
+        self.cache[splitter_name] = view
+        return view
 
     def push(self, splitter_name):
-        self._check_splitter_action_valid(splitter_name)
-        prev_active_view = self.active_hmap[splitter_name]
-        new_view = View(prev_active_view.value)
-        new_view.parent = prev_active_view
-        self.active_hmap[splitter_name] = new_view
-        self.youngest_aug_hmap.push(splitter_name, new_view)
+        parent_view = self.access(splitter_name)
+        new_view = View(parent_view.value)
+        new_view.parent = parent_view
+        hmap = self.hmap_deque.youngest_hmap
+        if splitter_name not in hmap:
+            hmap.base_map[splitter_name] = parent_view
+        hmap.top_map[splitter_name] = new_view
+        oldest_of_youngest = self.hmap_deque.oldest_of_youngest
+        if splitter_name not in oldest_of_youngest:
+            oldest_of_youngest.base_map[splitter] = parent_view
+            oldest_of_youngest.top_map[splitter] = parent_view
+        self.cache[splitter_name] = new_view
 
     def set(self, splitter_name, splitter_value):
-        self._check_splitter_action_valid(splitter_name)
-        self.active_hmap[splitter_name].value = splitter_value
+        view = self.access(splitter_name)
+        view.value = splitter_value
 
     def pop(self, splitter_name):
-        self._check_splitter_action_valid(splitter_name)
-        self.active_hmap[splitter_name].count -= 1
-        self.youngest_aug_hmap.pop(splitter_name)
-        self.active_hmap[splitter_name] = self.active_hmap[splitter_name].parent
-
-    def steal(self, victim):
-        self.check_steal_valid(victim)
-        # Construct new ancestor hypermap for victim
-        thief_ancestor_hmap = copy(victim.ancestor_hmap)
-        victim_ancestor_hmap = victim.ancestor_hmap
-        for name, view in victim.oldest_aug_hmap.cur_map.items():
-            victim_ancestor_hmap[name] = view
-        # Set hypermaps
-        self.ancestor_hmap = thief_ancestor_hmap
-        self.active_hmap = copy(victim_ancestor_hmap)
-        aug_hmap = victim.aug_hmap_deque.pop(0)
-        self.aug_hmap_deque.append(aug_hmap)
-        super().steal(victim)
-
-    def sync(self):
-        self.check_sync_valid()
-        if not self.deque.is_single_frame():  # no-op
-            return
-        else:  # pop, try to provably good steal back
-            cur_frame = self.deque.youngest_frame
-            cur_frame.worker = None
-            self.deque.pop()
-            # Change ownership of hypermaps
-            assert(cur_frame.ancestor_hmap is None and cur_frame.aug_hmap is None)
-            cur_frame.aug_hmap = self.aug_hmap_deque.pop()
-            assert(len(self.aug_hmap_deque) == 0)
-            cur_frame.ancestor_hmap = self.ancestor_hmap
-            self.ancestor_hmap = None
-            cur_frame.active_hmap = self.active_hmap
-            self.active_hmap = None
-            self.provably_good_steal(cur_frame)
-
-    def spawn(self):
-        self.check_spawn_valid()
-        new_frame = Frame("spawn")
-        new_frame.worker = self
-        new_frame.attach(self.deque.youngest_frame)
-        new_stacklet = Stacklet(new_frame)
-        self.deque.push(new_stacklet)
-        self.aug_hmap_deque.append(AugmentedHmap())
-
-    def call(self):
-        self.check_call_valid()
-        new_frame = Frame("call")
-        new_frame.worker = self
-        self.deque.youngest_stacklet.push(new_frame)
-
-    def ret_from_spawn(self):
-        if len(self.youngest_aug_hmap) != 0:
-            raise InvalidActionError("Cannot return without having popped "
-                                     "all pushed splitters.")
-        self.aug_hmap_deque.pop()
-        if self.deque.is_single_frame():
-            self.active_hmap = None
-            self.ancestor_hmap = None
-        super().ret_from_spawn()
-        # TODO: correctly simulate "destroy view" since python garbage collects
-
-    def provably_good_steal_success(self, frame):
-        super().provably_good_steal_success(frame)
-        assert(frame.ancestor_hmap is not None and frame.aug_hmap is not None)
-        # Change ownership of hypermaps
-        self.ancestor_hmap = frame.ancestor_hmap
-        frame.ancestor_hmap = None
-        self.aug_hmap_deque.append(frame.aug_hmap)
-        frame.aug_hmap = None
-        self.active_hmap = frame.active_hmap
-        frame.active_hmap = None
+        view = self.access(splitter_name)
+        parent_view = view.parent
+        oldest_of_youngest = self.hmap_deque.oldest_of_youngest
+        if (
+            splitter_name not in oldest_of_youngest or
+            oldest_of_youngest.base_map[splitter_name] is view
+        ):
+            raise InvalidActionError("Splitter {} cannot be popped".format(
+                                     splitter_name))
+        youngest = self.hmap_deque.youngest_hmap
+        if (
+            splitter_name not in youngest or
+            youngest.top_map[splitter_name] is youngest.base_map[splitter_name]
+        ):  # push back base
+            youngest.top_map[splitter_name] = parent_view
+            youngest_base_map[splitter_name] = parent_view
+        else:
+            youngest.top_map[splitter_name] = parent_view
+        self.cache[splitter_name] = parent_view
 
     def print_state(self):
-        base_str = super().print_state()
+        # interleave call stack and hypermaps
+        # under each call stack, print hypermaps in order of oldest to youngest
+        assert(len(self.deque) == len(self.hmap_deque))
         str_comp = []
-        str_comp.append(base_str)
-        str_comp.append("\nAncestor hmap: \t")
-        str_comp.append(str(self.ancestor_hmap))
-        str_comp.append("\n")
-        for i, hmap in enumerate(self.aug_hmap_deque):
-            if i == len(self.aug_hmap_deque) - 1:  # corresponds to active stacklet
-                str_comp.append(color(str(hmap), "grey"))
+        for i, (stacklet, hmaps) in enumerate(zip(self.deque, self.hmap_deque)):
+            pos_comp = []
+            pos_comp.append(str(stacklet))
+            pos_comp.append("\n")
+            for hmap in hmaps:
+                pos_comp.append("\t")
+                pos_comp.append(str(hmap))
+                pos_comp.append("\n")
+            pos_str = "".join(pos_comp)
+            if i == len(self.deque) - 1:  # active stacklet, indicate by color
+                str_comp.append(color(pos_str, "grey"))
             else:
-                str_comp.append(str(hmap))
-            str_comp.append("\n")
-        str_comp.append("\nActive hmap: \t")
-        str_comp.append(str(self.active_hmap))
+                str_comp.append(pos_str)
+        str_comp.append("Cache: ")
+        str_comp.append(str(self.cache))
         str_comp.append("\n")
         return "".join(str_comp)
 
 
-class AugmentedHmap(object):
-    def __init__(self):
-        self.cur_map = {}
-        self.start_map = {}
+class HMap(object):
+    def __init__(self, parent):
+        self.top_map = {}
+        self.base_map = {}
+        self.parent = parent
 
-    def __len__(self):
-        assert(self.cur_map.keys() == self.start_map.keys())
-        return len(self.cur_map)
+    def top_view(self, splitter_name):
+        return self.top_map[splitter_name]
 
-    def push(self, splitter_name, view):
-        """Push view into hypermap at deque position."""
-        assert(self.cur_map.keys() == self.start_map.keys())
-        if splitter_name in self.cur_map:
-            self.cur_map[splitter_name] = view
-        else:
-            self.cur_map[splitter_name] = view
-            self.start_map[splitter_name] = view
-
-    def pop(self, splitter_name):
-        assert(self.cur_map.keys() == self.start_map.keys())
-        if splitter_name not in self.cur_map:
-            raise InvalidActionError("Cannot pop splitter {}".format(
-                                     splitter_name))
-        popped_view = self.cur_map[splitter_name]
-        if popped_view is self.start_map[splitter_name]:
-            # popped to the beginning of the stack
-            self.cur_map.pop(splitter_name)
-            self.start_map.pop(splitter_name)
-        else:
-            self.cur_map[splitter_name] = popped_view.parent
+    def __contains__(self, key):
+        return key in self.base_map
 
     def __str__(self):
-        assert(self.cur_map.keys() == self.start_map.keys())
-        return str(self.cur_map)
+        assert(self.base_map.keys() == self.top_map.keys())
+        str_comp = []
+        for splitter_name in self.base_map:
+            str_comp.append(splitter_name)
+            str_comp.append(": ")
+            base_view = self.base_map[splitter_name]
+            iter_view = self.top_map[splitter_name]
+            values = []
+            while iter_view is not base_view:
+                values.append(iter_view.value)
+                iter_view = iter_view.parent
+            values.append(iter_view.value)
+            values.reverse()  # oldest in front, youngest at end
+            str_comp.append("<-".join(values))
+            str_comp.append("    ")
+        return "".join(str_comp)
 
+class HMapDeque(object):
+    def __init__(self):
+        self.deque = []  # each entry is a list from oldest to youngest in order
+
+    def __len__(self):
+        return len(self.deque)
+
+    def __iter__(self):
+        yield from self.deque
+
+    @property
+    def oldest_hmaps(self):
+        return self.deque[0]
+
+    @property
+    def youngest_hmaps(self):
+        return self.deque[-1]
+
+    @property
+    def youngest_hmap(self):
+        return self.youngest_hmaps[-1]
+
+    @property
+    def oldest_of_youngest(self):
+        return self.youngest_hmaps[0]
+
+    def append(self, hmap):
+        self.deque.append([hmap])
 
 class View(object):
     def __init__(self, value):
         self.value = value
         self.parent = None
-        self.count = 1
 
     def __str__(self):
         return str(self.value)
@@ -269,20 +240,11 @@ class Stacklet(base.Stacklet):
 
 
 class Frame(base.Frame):
-    def __init__(self, frame_type):
-        super().__init__(frame_type)
-        self.ancestor_hmap = None
-        self.aug_hmap = None
-        self.active_hmap = None
-
-    def __str__(self):
-        base_str = super().__str__()
-        if self.ancestor_hmap is not None:
-            assert(self.aug_hmap is not None)
-            base_str += "; Ancestor map: {}; ".format(self.ancestor_hmap)
-            base_str += "Augmented map: {}; ".format(self.aug_hmap)
-            base_str += "Active map: {}; ".format(self.active_hmap)
-        return base_str
+    pass
 
 
-initial_hmap = {"x": View("init-val"), "y": View("init-val")}
+initial_hmap = HMap(None)
+x_init_view = View("init-val")
+y_init_view = View("init-val")
+initial_hmap.top_map = {"x": x_init_view, "y": y_init_view}
+initial_hmap.base_map = {"x": x_init_view, "y": y_init_view}
