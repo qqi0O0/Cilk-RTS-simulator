@@ -102,6 +102,8 @@ class Worker(base.Worker):
         self.cache = {}
 
     def access(self, splitter_name):
+        if self.deque.is_empty():
+            raise InvalidActionError("Cannot access splitter from empty worker.")
         if splitter_name in self.cache:
             return self.cache[splitter_name]
         # start searching
@@ -184,6 +186,8 @@ class Worker(base.Worker):
             raise InvalidActionError("Cannot return without having popped "
                                      "all pushed splitters.")
         self.hmap_deque.pop()
+        if self.deque.is_single_frame():
+            self.cache = {}
         super().ret_from_spawn()
 
     def steal(self, victim):
