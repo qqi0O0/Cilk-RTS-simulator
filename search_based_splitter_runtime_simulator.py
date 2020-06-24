@@ -53,8 +53,14 @@ class RTS(base.RTS):
         # One worker starts with initial frame
         self.initial_frame = Frame("initial")
         init_worker = self.workers[0]
-        init_worker.deque.push(Stacklet(self.initial_frame))
         self.initial_frame.worker = init_worker
+        # That worker starts with a basic hypermap with default values
+        initial_hmap = HMap(None)
+        x_init_view = View("init-val")
+        y_init_view = View("init-val")
+        initial_hmap.top_map = {"x": x_init_view, "y": y_init_view}
+        initial_hmap.base_map = {"x": x_init_view, "y": y_init_view}
+        init_worker.deque.push(Stacklet(self.initial_frame))
         init_worker.hmap_deque.append(initial_hmap)
         # Keep track of all actions, for restoring
         self.actions = []
@@ -241,10 +247,3 @@ class Stacklet(base.Stacklet):
 
 class Frame(base.Frame):
     pass
-
-
-initial_hmap = HMap(None)
-x_init_view = View("init-val")
-y_init_view = View("init-val")
-initial_hmap.top_map = {"x": x_init_view, "y": y_init_view}
-initial_hmap.base_map = {"x": x_init_view, "y": y_init_view}
