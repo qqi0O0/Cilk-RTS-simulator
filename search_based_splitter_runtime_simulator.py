@@ -10,15 +10,15 @@
 #####
 
 
-# TODO: global container of not-destroyed views
-
-
 from copy import copy
 
 from helpers import (
     color, frame_id_assigner, InvalidActionError, ActionParseError, Action
 )
 import base_runtime_simulator as base
+
+
+all_views = []
 
 
 def parse_action(s):
@@ -48,6 +48,7 @@ def parse_action(s):
 class RTS(base.RTS):
     def __init__(self, num_workers):
         frame_id_assigner.reset()
+        all_views.clear()
         self.num_workers = num_workers
         # Initialize blank workers
         self.workers = []
@@ -59,8 +60,8 @@ class RTS(base.RTS):
         self.initial_frame.worker = init_worker
         # That worker starts with a basic hypermap with default values
         initial_hmap = HMap(None)
-        x_init_view = View("init-val")
-        y_init_view = View("init-val")
+        x_init_view = View("init-x")
+        y_init_view = View("init-y")
         initial_hmap.top_map = {"x": x_init_view, "y": y_init_view}
         initial_hmap.base_map = {"x": x_init_view, "y": y_init_view}
         init_worker.deque.push(Stacklet(self.initial_frame))
@@ -87,6 +88,10 @@ class RTS(base.RTS):
             self.actions.append(action)
         else:  # base action
             super().do_action(action)
+
+    def print_state(self):
+        views_str = color("Views:\n\n", "yellow") + str(all_views) + "\n\n"
+        return views_str + super().print_state()
 
 
 class Worker(base.Worker):
@@ -147,6 +152,7 @@ class Worker(base.Worker):
             youngest.base_map[splitter_name] = parent_view
         else:
             youngest.top_map[splitter_name] = parent_view
+            view.destroy()
         self.cache[splitter_name] = parent_view
 
     def call(self):
@@ -219,8 +225,12 @@ class Worker(base.Worker):
             for splitter_name in child:
                 top_view = accum.top_map[splitter_name]
                 base_view = child.base_map[splitter_name]
-                # Destroy from base to top, not including base
-                # skipped for now, will exist once views are tracked
+                # Destroy from top to base, not including base
+                iter_view = top_view
+                while iter_view is not base_view:
+                    print(iter_view)
+                    iter_view.destroy()
+                    iter_view = iter_view.parent
                 # Update top view
                 accum.top_map[splitter_name] = child.top_map[splitter_name]
         self.hmap_deque.append(accum)
@@ -315,12 +325,17 @@ class View(object):
     def __init__(self, value):
         self.value = value
         self.parent = None
+        all_views.append(self)
 
     def __str__(self):
         return str(self.value)
 
     def __repr__(self):
         return str(self.value)
+
+    def destroy(self):
+        assert(self in all_views)
+        all_views.remove(self)
 
 
 class Stacklet(base.Stacklet):
