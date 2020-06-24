@@ -253,11 +253,9 @@ class Worker(object):
         str_comp = []
         for i, stacklet in enumerate(self.deque):
             if i == len(self.deque) - 1:  # active stacklet, indicate by color
-                for frame in stacklet.frames:
-                    str_comp.append(color("{}\t\t".format(str(frame)), "grey"))
+                str_comp.append(color(str(stacklet), "grey"))
             else:
-                for frame in stacklet.frames:
-                    str_comp.append("{}\t\t".format(str(frame)))
+                str_comp.append(str(stacklet))
             str_comp.append("\n")
         return "".join(str_comp)
 
@@ -317,6 +315,12 @@ class Stacklet(object):
 
     def __contains__(self, frame):
         return frame in self.frames
+
+    def __str__(self):
+        str_comp = []
+        for frame in self.frames:
+            str_comp.append("{}\t\t".format(str(frame)))
+        return "".join(str_comp)
 
     @property
     def youngest_frame(self):
