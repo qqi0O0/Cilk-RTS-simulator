@@ -141,7 +141,7 @@ class Worker(base.Worker):
             youngest.top_map[splitter_name] is youngest.base_map[splitter_name]
         ):  # push back base
             youngest.top_map[splitter_name] = parent_view
-            youngest_base_map[splitter_name] = parent_view
+            youngest.base_map[splitter_name] = parent_view
         else:
             youngest.top_map[splitter_name] = parent_view
         self.cache[splitter_name] = parent_view
