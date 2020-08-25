@@ -3,11 +3,11 @@
 # Options for inputs:
 #
 # undo
-# call (worker index)
-# spawn (worker index)
-# return (worker index)
-# steal (thief index) (victim index)
-# sync (worker index)
+# call (worker id)
+# spawn (worker id)
+# return (worker id)
+# steal (thief id) (victim id)
+# sync (worker id)
 #
 #####
 
@@ -25,16 +25,15 @@ def parse_action(s):
         if action_type == "undo":
             action = Action(action_type)
         elif action_type == "call":
-            action = Action(action_type, worker_index=int(s_comp[1]))
+            action = Action(action_type, worker_id=s_comp[1])
         elif action_type == "spawn":
-            action = Action(action_type, worker_index=int(s_comp[1]))
+            action = Action(action_type, worker_id=s_comp[1])
         elif action_type == "return":
-            action = Action(action_type, worker_index=int(s_comp[1]))
+            action = Action(action_type, worker_id=s_comp[1])
         elif action_type == "steal":
-            action = Action(action_type, thief_index=int(s_comp[1]),
-                            victim_index=int(s_comp[2]))
+            action = Action(action_type, thief_id=s_comp[1], victim_id=s_comp[2])
         elif action_type == "sync":
-            action = Action(action_type, worker_index=int(s_comp[1]))
+            action = Action(action_type, worker_id=s_comp[1])
         else:
             raise ActionParseError()
         return action
@@ -47,13 +46,14 @@ class RTS(object):
         frame_id_assigner.reset()
         self.num_workers = num_workers
         # Initialize blank workers
-        self.workers = []
+        self.workers = {}
         for i in range(self.num_workers):
-            self.workers.append(Worker(i))
+            worker_id = chr(65 + i)  # chr(65) = A
+            self.workers[worker_id] = Worker(worker_id)
         # One worker starts with initial frame
         self.initial_frame = Frame("initial")
-        self.workers[0].deque.push(Stacklet(self.initial_frame))
-        self.initial_frame.worker = self.workers[0]
+        self.workers['A'].deque.push(Stacklet(self.initial_frame))
+        self.initial_frame.worker = self.workers['A']
         # Keep track of all actions, for restoring
         self.actions = []
 
@@ -65,20 +65,20 @@ class RTS(object):
         else:
             # Attempt to perform action
             if action.type == "call":
-                worker = self.workers[action.worker_index]
+                worker = self.workers[action.worker_id]
                 worker.call()
             elif action.type == "spawn":
-                worker = self.workers[action.worker_index]
+                worker = self.workers[action.worker_id]
                 worker.spawn()
             elif action.type == "return":
-                worker = self.workers[action.worker_index]
+                worker = self.workers[action.worker_id]
                 worker.ret()
             elif action.type == "steal":
-                thief = self.workers[action.thief_index]
-                victim = self.workers[action.victim_index]
+                thief = self.workers[action.thief_id]
+                victim = self.workers[action.victim_id]
                 thief.steal(victim)
             elif action.type == "sync":
-                worker = self.workers[action.worker_index]
+                worker = self.workers[action.worker_id]
                 worker.sync()
             # If action performed without error, add to history
             self.actions.append(action)
@@ -109,8 +109,8 @@ class RTS(object):
         str_comp.extend(self._print_full_frame_tree_helper(self.initial_frame))
         # Print worker deques
         str_comp.append(color("\n\nWorker deques:\n\n", "yellow"))
-        for worker in self.workers:
-            str_comp.append(color("Worker {}\n".format(worker.index), "blue"))
+        for worker in self.workers.values():
+            str_comp.append(color("Worker {}\n".format(worker.id), "blue"))
             str_comp.append(worker.print_state())
             str_comp.append("\n")
         return "".join(str_comp)
@@ -128,9 +128,9 @@ class Worker(object):
     """
     Worker object that performs actions on its deque at various control points.
     """
-    def __init__(self, index):
+    def __init__(self, id_):
         self.deque = Deque()
-        self.index = index  # identifier for this worker in the RTS
+        self.id = id_  # identifier for this worker in the RTS
 
     def check_steal_valid(self, victim):
         if not self.deque.is_empty():
@@ -356,7 +356,7 @@ class Frame(object):
         if self.worker is None:
             return "{} {}".format(self.type, self.id)
         else:
-            return "{} {} (Worker {})".format(self.type, self.id, self.worker.index)
+            return "{} {} (Worker {})".format(self.type, self.id, self.worker.id)
 
     def attach(self, parent):
         """Add self as child to frame `parent`."""
