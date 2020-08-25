@@ -2,9 +2,9 @@
 #
 # Additional options for inputs:
 #
-# push (worker index) (splitter name)
-# set (worker index) (splitter name) (splitter value)
-# pop (worker index) (splitter name)
+# push (worker id) (splitter name)
+# set (worker id) (splitter name) (splitter value)
+# pop (worker id) (splitter name)
 #
 #####
 
@@ -23,13 +23,13 @@ def parse_action(s):
         s_comp = s.split()
         action_type = s_comp[0]
         if action_type == "push":
-            action = Action(action_type, worker_index=int(s_comp[1]),
+            action = Action(action_type, worker_id=s_comp[1],
                             splitter_name=s_comp[2])
         elif action_type == "set":
-            action = Action(action_type, worker_index=int(s_comp[1]),
+            action = Action(action_type, worker_id=s_comp[1],
                             splitter_name=s_comp[2], splitter_value=s_comp[3])
         elif action_type == "pop":
-            action = Action(action_type, worker_index=int(s_comp[1]),
+            action = Action(action_type, worker_id=s_comp[1],
                             splitter_name=s_comp[2])
         else:
             action = base.parse_action(s)
@@ -43,12 +43,14 @@ class RTS(base.RTS):
         frame_id_assigner.reset()
         self.num_workers = num_workers
         # Initialize blank workers
-        self.workers = []
+        self.workers = {}
         for i in range(self.num_workers):
-            self.workers.append(Worker(i))  # NOTE: override to use new Worker class
+            worker_id = chr(65 + i)  # chr(65) = A
+            # NOTE: override to use new Worker class
+            self.workers[worker_id] = Worker(worker_id)
         # One worker starts with initial frame
         self.initial_frame = Frame("initial")
-        init_worker = self.workers[0]
+        init_worker = self.workers['A']
         init_worker.deque.push(Stacklet(self.initial_frame))
         self.initial_frame.worker = init_worker
         init_worker.aug_hmap_deque.append(AugmentedHmap())
@@ -59,15 +61,15 @@ class RTS(base.RTS):
 
     def do_action(self, action):
         if action.type == "push":
-            worker = self.workers[action.worker_index]
+            worker = self.workers[action.worker_id]
             worker.push(action.splitter_name)
             self.actions.append(action)
         elif action.type == "set":
-            worker = self.workers[action.worker_index]
+            worker = self.workers[action.worker_id]
             worker.set(action.splitter_name, action.splitter_value)
             self.actions.append(action)
         elif action.type == "pop":
-            worker = self.workers[action.worker_index]
+            worker = self.workers[action.worker_id]
             worker.pop(action.splitter_name)
             self.actions.append(action)
         else:  # base action
@@ -75,8 +77,8 @@ class RTS(base.RTS):
 
 
 class Worker(base.Worker):
-    def __init__(self, index):
-        super().__init__(index)
+    def __init__(self, id_):
+        super().__init__(id_)
         # Keep track of splitter state
         self.aug_hmap_deque = []
         self.ancestor_hmap = None
