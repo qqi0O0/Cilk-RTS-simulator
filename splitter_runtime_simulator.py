@@ -5,7 +5,6 @@
 # push (worker index) (splitter name)
 # set (worker index) (splitter name) (splitter value)
 # pop (worker index) (splitter name)
-# access (worker index) (splitter_name)
 #
 #####
 
@@ -32,9 +31,6 @@ def parse_action(s):
         elif action_type == "pop":
             action = Action(action_type, worker_index=int(s_comp[1]),
                             splitter_name=s_comp[2])
-        elif action_type == "access":
-            action = Action(action_type, worker_index=int(s_comp[1]),
-                            splitter_name=s_comp[2])
         else:
             action = base.parse_action(s)
         return action
@@ -57,7 +53,7 @@ class RTS(base.RTS):
         self.initial_frame.worker = init_worker
         init_worker.aug_hmap_deque.append(AugmentedHmap())
         init_worker.ancestor_hmap = copy(initial_hmap)
-        init_worker.active_hmap = {}
+        init_worker.active_hmap = copy(initial_hmap)
         # Keep track of all actions, for restoring
         self.actions = []
 
@@ -73,10 +69,6 @@ class RTS(base.RTS):
         elif action.type == "pop":
             worker = self.workers[action.worker_index]
             worker.pop(action.splitter_name)
-            self.actions.append(action)
-        elif action.type == "access":
-            worker = self.workers[action.worker_index]
-            worker.access(action.splitter_name)
             self.actions.append(action)
         else:  # base action
             super().do_action(action)
@@ -98,16 +90,15 @@ class Worker(base.Worker):
     def youngest_aug_hmap(self):
         return self.aug_hmap_deque[-1]
 
-    def access(self, splitter_name):
-        if splitter_name in self.active_hmap:
-            return self.active_hmap[splitter_name]
-        if splitter_name in self.oldest_aug_hmap:
-            view = self.oldest_aug_hmap.cur_map[splitter_name]
-            self.active_hmap[splitter_name] = view
-            return view
-        # Otherwise, start recursively searching parent ancestor hmaps
-        # TODO: confirm this is actually legal
-        
+    def _check_splitter_action_valid(self, splitter_name):
+        if self.deque.is_empty():
+            raise InvalidActionError("There is no frame, can't do operation "
+                                     "on splitter")
+        assert(self.active_hmap is not None)
+        assert(self.ancestor_hmap is not None)
+        if splitter_name not in self.active_hmap:
+            raise InvalidActionError("Splitter {} not found".format(
+                                     splitter_name))
 
     def push(self, splitter_name):
         self._check_splitter_action_valid(splitter_name)
