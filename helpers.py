@@ -3,8 +3,9 @@ def color(string, color):
     colors = {
         "red": '\033[91m',
         "green": '\033[92m',
-        "blue": '\033[94m',
         "yellow": '\033[93m',
+        "blue": '\033[94m',
+        "purple": '\033[95m',
         "grey": '\033[90m',
     }
     endc = '\033[0m'
