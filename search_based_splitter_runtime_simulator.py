@@ -350,6 +350,10 @@ class Stacklet(base.Stacklet):
 
 class Frame(base.Frame):
     def __init__(self, frame_type):
+        """
+        Suspended frames may need to keep track of the state by keeping track
+        of hmaps and cache.
+        """
         super().__init__(frame_type)
         self.hmaps = []
         self.cache = None
