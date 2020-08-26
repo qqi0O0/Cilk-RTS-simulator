@@ -57,6 +57,11 @@ class RTS(object):
         # Keep track of all actions, for restoring
         self.actions = []
 
+    def get_worker(self, worker_id):
+        if worker_id not in self.workers:
+            raise InvalidActionError("Worker {} not found.".format(worker_id))
+        return self.workers[worker_id]
+
     def do_action(self, action):
         if action.type == "undo":
             if len(self.actions) > 0:
@@ -65,20 +70,20 @@ class RTS(object):
         else:
             # Attempt to perform action
             if action.type == "call":
-                worker = self.workers[action.worker_id]
+                worker = self.get_worker(action.worker_id)
                 worker.call()
             elif action.type == "spawn":
-                worker = self.workers[action.worker_id]
+                worker = self.get_worker(action.worker_id)
                 worker.spawn()
             elif action.type == "return":
-                worker = self.workers[action.worker_id]
+                worker = self.get_worker(action.worker_id)
                 worker.ret()
             elif action.type == "steal":
-                thief = self.workers[action.thief_id]
-                victim = self.workers[action.victim_id]
+                thief = self.get_worker(action.thief_id)
+                victim = self.get_worker(action.victim_id)
                 thief.steal(victim)
             elif action.type == "sync":
-                worker = self.workers[action.worker_id]
+                worker = self.get_worker(action.worker_id)
                 worker.sync()
             # If action performed without error, add to history
             self.actions.append(action)

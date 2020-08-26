@@ -72,22 +72,20 @@ class RTS(base.RTS):
         self.actions = []
 
     def do_action(self, action):
-        if action.worker_id not in self.workers:
-            raise InvalidActionError("Worker {} not found.".format(action.worker_id))
         if action.type == "push":
-            worker = self.workers[action.worker_id]
+            worker = self.get_worker(action.worker_id)
             worker.push(action.splitter_name)
             self.actions.append(action)
         elif action.type == "set":
-            worker = self.workers[action.worker_id]
+            worker = self.get_worker(action.worker_id)
             worker.set(action.splitter_name, action.splitter_value)
             self.actions.append(action)
         elif action.type == "pop":
-            worker = self.workers[action.worker_id]
+            worker = self.get_worker(action.worker_id)
             worker.pop(action.splitter_name)
             self.actions.append(action)
         elif action.type == "access":
-            worker = self.workers[action.worker_id]
+            worker = self.get_worker(action.worker_id)
             worker.access(action.splitter_name)
             self.actions.append(action)
         else:  # base action

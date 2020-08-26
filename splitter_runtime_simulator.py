@@ -61,15 +61,15 @@ class RTS(base.RTS):
 
     def do_action(self, action):
         if action.type == "push":
-            worker = self.workers[action.worker_id]
+            worker = self.get_worker(action.worker_id)
             worker.push(action.splitter_name)
             self.actions.append(action)
         elif action.type == "set":
-            worker = self.workers[action.worker_id]
+            worker = self.get_worker(action.worker_id)
             worker.set(action.splitter_name, action.splitter_value)
             self.actions.append(action)
         elif action.type == "pop":
-            worker = self.workers[action.worker_id]
+            worker = self.get_worker(action.worker_id)
             worker.pop(action.splitter_name)
             self.actions.append(action)
         else:  # base action
