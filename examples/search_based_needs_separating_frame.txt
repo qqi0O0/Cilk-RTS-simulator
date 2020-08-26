@@ -1,0 +1,7 @@
+push A x
+set A x val1
+call A
+spawn A
+steal B A
+push B x
+set B x val2

@@ -1,8 +1,8 @@
-call 0
-spawn 0
-steal 1 0
-call 1
-spawn 1
-steal 2 1
-return 1
-return 2
+call A
+spawn A
+steal B A
+call B
+spawn B
+steal C B
+return B
+return C

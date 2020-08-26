@@ -1,0 +1,24 @@
+spawn A
+steal B A
+sync B
+spawn A
+steal B A
+sync B
+spawn A
+steal B A
+sync B
+spawn A
+steal B A
+sync B
+spawn A
+steal B A
+sync B
+spawn A
+steal B A
+sync B
+spawn A
+steal B A
+push A x
+set A x val1
+pop A x
+return A
