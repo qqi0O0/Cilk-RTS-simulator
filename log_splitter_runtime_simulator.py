@@ -16,6 +16,9 @@ from helpers import (
 import base_runtime_simulator as base
 
 
+# TODO: keep track of/check spawn depth
+
+
 def parse_action(s):
     try:
         s_comp = s.split()
@@ -43,7 +46,7 @@ class RTS(base.RTS):
             worker_id = chr(65 + i)  # chr(65) = A
             self.workers[worker_id] = Worker(worker_id)
         # One worker starts with initial frame
-        self.initial_frame = base.Frame("initial")
+        self.initial_frame = Frame("initial")
         init_worker = self.workers['A']
         init_worker.deque.push(base.Stacklet(self.initial_frame))
         self.initial_frame.worker = self.workers['A']
@@ -93,6 +96,30 @@ class Worker(base.Worker):
         # Finally, update record and cache
         self.cur_record.tree = new_tree
         self.cache.add(splitter_name)
+
+    def write(self, splitter_name, new_v):
+        # TODO: simple log tracking
+        pass
+
+    def spawn(self):
+        self.check_spawn_valid()
+        new_frame = Frame("spawn")
+        new_frame.worker = self
+        new_frame.attach(self.deque.youngest_frame)
+        # Append to deque
+        new_stacklet = base.Stacklet(new_frame)
+        self.deque.push(new_stacklet)
+        # Append to record deque
+        new_record = Record(self.cur_tree)
+        self.record_deque.append(new_record)
+
+    def ret_from_spawn(self):
+        # TODO: destruction handling
+        pass
+
+    def steal(self, victim):
+        # TODO: complex log tracking
+        pass
 
     def print_state(self):
         str_comp = []
@@ -256,7 +283,24 @@ class SplitterTree(object):
         return new_splitter_tree
 
 
+class Frame(base.Frame):
+    def get_depth(self):
+        """
+        Return the spawn depth of the frame.
+        """
+        depth = 0
+        cur = self
+        if cur.type == "spawn":
+            depth += 1
+        while cur.parent is not None:
+            cur = cur.parent
+            if cur.type == "spawn":
+                depth += 1
+        return depth
 
+    def __str__(self):
+        base_str = super().__str__()
+        return base_str + " (depth {})".format(self.get_depth())
 
 
 # t1 = SplitterTree()
