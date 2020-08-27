@@ -141,8 +141,37 @@ class Worker(base.Worker):
         self.record_deque.append(new_record)
 
     def ret_from_spawn(self):
-        # TODO: destruction handling
-        pass
+        ret_frame = self.deque.youngest_frame
+        # Perform simple destructs
+        for leaf in self.cur_record.simple_log:
+            popped_pair = self.cur_tree.get_leaf_array(leaf).pop()
+            assert(popped_pair[0] == ret_frame.get_depth())
+        # Perform complex destructs, which doesn't actually show up as operations here
+        # If doing provably good steal of parent next
+        if self.deque.is_single_frame():
+            # Invalidate cache (use parent's cache), pop record, and prepare for
+            # provably good steal
+            self.record_deque.pop()
+            self.cache = {}
+        else:
+            # Pop record, but keep using the same tree
+            prev_record = self.record_deque.pop()
+            self.cur_record.tree = prev_record.tree
+        super().ret_from_spawn()
+
+    def provably_good_steal_success(self, frame):
+        super().provably_good_steal_success(frame)
+        assert(frame.cache is not None and frame.record is not None
+               and frame.complex_alloc_group is not None)
+        assert(len(self.record_deque) == 0 and len(self.cache) == 0
+               and self.complex_alloc_group is None)
+        # Transfer ownership from frame to worker deque
+        self.cache = frame.cache
+        frame.cache = None
+        self.record.append(frame.record)
+        frame.record = None
+        self.complex_alloc_group = frame.complex_alloc_group
+        frame.complex_alloc_group = None
 
     def steal(self, victim):
         # TODO: complex log tracking
@@ -150,6 +179,7 @@ class Worker(base.Worker):
 
     def print_state(self):
         str_comp = []
+        assert(len(self.deque) == len(self.record_deque))
         for stacklet, record in zip(self.deque, self.record_deque):
             str_comp.append(str(stacklet))
             str_comp.append("\n")
@@ -325,6 +355,12 @@ class SplitterTree(object):
 
 
 class Frame(base.Frame):
+    def __init__(self,  frame_type):
+        super().__init__(frame_type)
+        self.record = None
+        self.cache = None
+        self.complex_alloc_group = None
+
     def get_depth(self):
         """
         Return the spawn depth of the frame.
