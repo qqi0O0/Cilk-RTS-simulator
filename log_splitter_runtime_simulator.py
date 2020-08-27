@@ -16,9 +16,6 @@ from helpers import (
 import base_runtime_simulator as base
 
 
-# TODO: keep track of/check spawn depth
-
-
 def parse_action(s):
     try:
         s_comp = s.split()
@@ -60,6 +57,10 @@ class RTS(base.RTS):
             worker = self.get_worker(action.worker_id)
             worker.access(action.splitter_name)
             self.actions.append(action)
+        elif action.type == "write":
+            worker = self.get_worker(action.worker_id)
+            worker.write(action.splitter_name, action.splitter_value)
+            self.actions.append(action)
         else:  # base action
             super().do_action(action)
 
@@ -98,8 +99,22 @@ class Worker(base.Worker):
         self.cache.add(splitter_name)
 
     def write(self, splitter_name, new_v):
-        # TODO: simple log tracking
-        pass
+        if self.deque.is_empty():
+            raise InvalidActionError("Cannot access splitter from empty worker")
+        # If not in cache, access first
+        if splitter_name not in self.cache:
+            self.access(splitter_name)
+        # Find target d and array
+        leaf_array = self.cur_record.tree.get_leaf_array(splitter_name)
+        cur_d = self.deque.youngest_frame.get_depth()
+        # If d value different, append
+        if leaf_array[-1][0] != cur_d:
+            assert(leaf_array[-1][0] < cur_d)
+            leaf_array.append((cur_d, new_v))
+            # Add to simple log
+            self.cur_record.simple_log.append(splitter_name)
+        else:  # d value same, overwrite
+            leaf_array[-1] = (cur_d, new_v)
 
     def spawn(self):
         self.check_spawn_valid()
@@ -301,15 +316,3 @@ class Frame(base.Frame):
     def __str__(self):
         base_str = super().__str__()
         return base_str + " (depth {})".format(self.get_depth())
-
-
-# t1 = SplitterTree()
-# print(t1)
-# t2 = t1.root_copy(1)
-# print(t2)
-# t3 = t2.path_copy('X', 'new-X')
-# print(t3)
-# t4 = t3.root_copy(2)
-# print(t4)
-# t5 = t4.path_copy('Y', 'new-Y')
-# print(t5)
