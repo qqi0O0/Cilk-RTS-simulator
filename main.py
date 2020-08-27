@@ -14,7 +14,8 @@ from helpers import color, ActionParseError, InvalidActionError
 
 #from base_runtime_simulator import RTS, parse_action
 #from splitter_runtime_simulator import RTS, parse_action
-from search_based_splitter_runtime_simulator import RTS, parse_action
+#from search_based_splitter_runtime_simulator import RTS, parse_action
+from log_splitter_runtime_simulator import RTS, parse_action
 
 
 rts = RTS(4)  # 4 workers

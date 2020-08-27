@@ -214,7 +214,7 @@ class Worker(base.Worker):
             cur_frame.hmaps = self.hmap_deque.pop()
             assert(len(self.hmap_deque) == 0)
             cur_frame.cache = self.cache
-            self.cache = None
+            self.cache = {}
             self.provably_good_steal(cur_frame)
 
     def provably_good_steal_success(self, frame):
