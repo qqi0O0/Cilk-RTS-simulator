@@ -1,3 +1,12 @@
+enclosed_alp = [
+    '\u249C', '\u249D', '\u249E', '\u249F', '\u24A0', '\u24A1',
+    '\u24A2', '\u24A3', '\u24A4', '\u24A5', '\u24A6', '\u24A7',
+    '\u24A8', '\u24A9', '\u24AA', '\u24AB', '\u24AC', '\u24AD',
+    '\u24AE', '\u24AF', '\u24B0', '\u24B1', '\u24B2', '\u24B3',
+    '\u24B4', '\u24B5'
+]
+
+
 def color(string, color):
     """Return a new string that is the input string with the specified color."""
     colors = {
