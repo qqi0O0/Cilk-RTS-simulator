@@ -101,7 +101,10 @@ class Worker(base.Worker):
         assert(search_d is not None)
         # Second, search for the right value
         target_v = self.cur_tree.search_leaf(splitter_name, search_d)
-        # Third, path copy
+        # Third, update complex log
+        assert(self.complex_alloc_group is not None)
+        self.complex_alloc_group.append(node_symbol_assigner.cur_symbol())
+        # Fourth, path copy
         new_tree = self.cur_tree.path_copy(splitter_name, target_v)
         # Finally, update record and cache
         self.cur_record.tree = new_tree
