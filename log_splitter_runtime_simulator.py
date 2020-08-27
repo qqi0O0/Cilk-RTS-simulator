@@ -11,7 +11,8 @@
 from copy import copy
 
 from helpers import (
-    color, frame_id_assigner, InvalidActionError, ActionParseError, Action
+    color, frame_id_assigner, node_symbol_assigner, InvalidActionError,
+    ActionParseError, Action
 )
 import base_runtime_simulator as base
 
@@ -36,6 +37,7 @@ def parse_action(s):
 class RTS(base.RTS):
     def __init__(self, num_workers):
         frame_id_assigner.reset()
+        node_symbol_assigner.reset()
         self.num_workers = num_workers
         # Initialize blank workers
         self.workers = {}
@@ -49,6 +51,10 @@ class RTS(base.RTS):
         self.initial_frame.worker = self.workers['A']
         # That worker starts with a basic record
         init_worker.record_deque.append(Record())
+        # Starts with an area for complex allocations
+        init_complex_alloc_group = []
+        init_worker.complex_alloc_group = init_complex_alloc_group
+        init_worker.cur_record.complex_log.append(init_complex_alloc_group)
         # Keep track of all actions, for restoring
         self.actions = []
 
@@ -70,6 +76,9 @@ class Worker(base.Worker):
         super().__init__(id_)
         self.record_deque = []  # list of records
         self.cache = set()  # Just splitter name is ok, just maps to the leaf
+        # A list belonging to some complex log, containing the symbols for the
+        # complex allocations in this execution chunk
+        self.complex_alloc_group = None
 
     @property
     def cur_record(self):
@@ -178,6 +187,7 @@ class SplitterTree(object):
             [(-1, "init-Y")],
             [(-1, "init-Z")],
         ]
+        self.node_symbols = ['.', '.', '.']  # How the non-leaf nodes are displayed
 
     def __str__(self):
         #       .
@@ -189,11 +199,11 @@ class SplitterTree(object):
         # W   X   Y   Z
         # array contents on the right of the tree
         lines = [
-            "      .",
+            "      {}".format(self.node_symbols[0]),
             "     / \\",
             "   {}/   \\{}".format(*self.d_values[:2]),
             "   /     \\",
-            "  .       . ",
+            "  {}       {}".format(*self.node_symbols[1:]),
             "{}/ \\{}   {}/ \\{}".format(*self.d_values[2:]),
             "W   X   Y   Z",
         ]
@@ -277,6 +287,14 @@ class SplitterTree(object):
             new_d_values[sibling_index] = latest_d
         new_d_values[second_index] = ' '
         new_splitter_tree.d_values = new_d_values
+        # New non-leaf node symbols
+        new_symbol = node_symbol_assigner.assign()
+        new_splitter_tree.node_symbols = copy(self.node_symbols)
+        new_splitter_tree.node_symbols[0] = new_symbol
+        if leaf in ('W', 'X'):
+            new_splitter_tree.node_symbols[1] = new_symbol
+        else:
+            new_splitter_tree.node_symbols[2] = new_symbol
         return new_splitter_tree
 
     def root_copy(self, d):
@@ -288,6 +306,8 @@ class SplitterTree(object):
         new_splitter_tree = SplitterTree()
         # Set leaves
         new_splitter_tree.leaf_arrays = self.leaf_arrays
+        # Set path copy history
+        new_splitter_tree.complex_alloc_history = copy(self.complex_alloc_history)
         # Update weights at root
         new_d_values = copy(self.d_values)
         if new_d_values[0] == ' ':
@@ -295,6 +315,9 @@ class SplitterTree(object):
         if new_d_values[1] == ' ':
             new_d_values[1] = d
         new_splitter_tree.d_values = new_d_values
+        # Update root node symbol
+        new_splitter_tree.node_symbols = copy(self.node_symbols)
+        new_splitter_tree.node_symbols[0] = '.'
         return new_splitter_tree
 
 

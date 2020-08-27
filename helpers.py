@@ -22,6 +22,27 @@ def color(string, color):
     return colors[color] + string + endc
 
 
+class SymbolAssigner(object):
+    def __init__(self):
+        self.symbol_index = 0
+
+    def assign(self):
+        to_return = enclosed_alp[self.symbol_index]
+        self.symbol_index += 1
+        if self.symbol_index >= len(enclosed_alp):
+            self.symbol_index = 0
+        return to_return
+
+    def cur_symbol(self):
+        return enclosed_alp[self.symbol_index]
+
+    def reset(self):
+        self.symbol_index = 0
+
+
+node_symbol_assigner = SymbolAssigner()
+
+
 class IDAssigner(object):
     def __init__(self):
         self.ID = 0
