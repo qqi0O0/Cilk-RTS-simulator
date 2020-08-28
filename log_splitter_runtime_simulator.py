@@ -152,12 +152,19 @@ class Worker(base.Worker):
             # Invalidate cache (use parent's cache), pop record, and prepare for
             # provably good steal
             self.record_deque.pop()
-            self.cache = {}
+            self.cache = set()
+            self.complex_alloc_group = None
         else:
             # Pop record, but keep using the same tree
             prev_record = self.record_deque.pop()
             self.cur_record.tree = prev_record.tree
         super().ret_from_spawn()
+
+    def call(self):
+        self.check_call_valid()
+        new_frame = Frame("call")
+        new_frame.worker = self
+        self.deque.youngest_stacklet.push(new_frame)
 
     def provably_good_steal_success(self, frame):
         super().provably_good_steal_success(frame)
@@ -168,7 +175,7 @@ class Worker(base.Worker):
         # Transfer ownership from frame to worker deque
         self.cache = frame.cache
         frame.cache = None
-        self.record.append(frame.record)
+        self.record_deque.append(frame.record)
         frame.record = None
         self.complex_alloc_group = frame.complex_alloc_group
         frame.complex_alloc_group = None
@@ -189,8 +196,23 @@ class Worker(base.Worker):
         self.complex_alloc_group = new_complex_log
 
     def sync(self):
-        # TODO
-        pass
+        self.check_sync_valid()
+        if not self.deque.is_single_frame():  # no-op
+            return
+        else:  # pop, try to provably good steal back
+            frame = self.deque.youngest_frame
+            frame.worker = None
+            self.deque.pop()
+            # Change ownership
+            assert(self.cache is not None)
+            frame.cache = self.cache
+            self.cache = set()
+            assert(len(self.record_deque) == 1)
+            frame.record = self.record_deque.pop()
+            assert(self.complex_alloc_group is not None)
+            frame.complex_alloc_group = self.complex_alloc_group
+            self.complex_alloc_group = None
+            self.provably_good_steal(frame)
 
     def print_state(self):
         str_comp = []
