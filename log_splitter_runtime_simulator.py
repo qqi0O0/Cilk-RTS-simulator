@@ -3,7 +3,7 @@
 # Additional options for inputs:
 #
 # access (worker id) (splitter name)
-# write (worker id) (splitter name)
+# write (worker id) (splitter name) (splitter value)
 #
 #####
 
@@ -59,7 +59,20 @@ class RTS(base.RTS):
         self.actions = []
 
     def do_action(self, action):
-        if action.type == "access":
+        if action.type == "help":
+            print(color(
+                "Options:\n"
+                "undo\n"
+                "call (worker id)\n"
+                "spawn (worker id)\n"
+                "return (worker id)\n"
+                "steal (thief id) (victim id)\n"
+                "sync (worker id)\n"
+                "access (worker id) (splitter name)\n"
+                "write (worker id) (splitter name) (splitter value)\n\n",
+                "red"
+            ))
+        elif action.type == "access":
             worker = self.get_worker(action.worker_id)
             worker.access(action.splitter_name)
             self.actions.append(action)

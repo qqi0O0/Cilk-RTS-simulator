@@ -24,6 +24,8 @@ def parse_action(s):
         action_type = s_comp[0]
         if action_type == "undo":
             action = Action(action_type)
+        elif action_type == "help":
+            action = Action(action_type)
         elif action_type == "call":
             action = Action(action_type, worker_id=s_comp[1])
         elif action_type == "spawn":
@@ -67,6 +69,17 @@ class RTS(object):
             if len(self.actions) > 0:
                 self.actions.pop()
             self.restore()
+        elif action.type == "help":
+            print(color(
+                "Options:\n"
+                "undo\n"
+                "call (worker id)\n"
+                "spawn (worker id)\n"
+                "return (worker id)\n"
+                "steal (thief id) (victim id)\n"
+                "sync (worker id)\n\n",
+                "red"
+            ))
         else:
             # Attempt to perform action
             if action.type == "call":
