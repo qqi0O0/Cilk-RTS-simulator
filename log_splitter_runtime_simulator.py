@@ -174,7 +174,22 @@ class Worker(base.Worker):
         frame.complex_alloc_group = None
 
     def steal(self, victim):
-        # TODO: complex log tracking
+        super().steal(victim)
+        stolen_record = victim.record_deque.pop(0)
+        assert(len(self.record_deque) == 0)
+        # Perform root copy at the right depth
+        stolen_depth = self.deque.youngest_frame.get_depth()
+        new_tree = stolen_record.tree.root_copy(stolen_depth)
+        stolen_record.tree = new_tree
+        self.record_deque.append(stolen_record)
+        # Complex log tracking
+        new_complex_log = []
+        self.cur_record.complex_log.append(new_complex_log)
+        assert(self.complex_alloc_group is None)
+        self.complex_alloc_group = new_complex_log
+
+    def sync(self):
+        # TODO
         pass
 
     def print_state(self):
@@ -339,8 +354,9 @@ class SplitterTree(object):
         new_splitter_tree = SplitterTree()
         # Set leaves
         new_splitter_tree.leaf_arrays = self.leaf_arrays
-        # Set path copy history
-        new_splitter_tree.complex_alloc_history = copy(self.complex_alloc_history)
+        # Set node symbols
+        new_splitter_tree.node_symbols = copy(self.node_symbols)
+        new_splitter_tree.node_symbols[0] = '.'  # Root copy root node no allocation
         # Update weights at root
         new_d_values = copy(self.d_values)
         if new_d_values[0] == ' ':
