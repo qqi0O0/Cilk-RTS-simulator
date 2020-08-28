@@ -321,7 +321,7 @@ class SplitterTree(object):
         leaf_index = self.get_leaf_index(leaf)
         new_splitter_tree = SplitterTree()
         # Set leaves
-        new_splitter_tree.leaf_arrays = self.leaf_arrays
+        new_splitter_tree.leaf_arrays = copy(self.leaf_arrays)
         new_splitter_tree.leaf_arrays[leaf_index] = [(-1, value)]
         # Update edge weights
         new_d_values = copy(self.d_values)
